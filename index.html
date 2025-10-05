@@ -23,19 +23,21 @@
         .fraction > span.denominator {
             border-top: 2px solid currentColor;
         }
+        /* --- 🎨 可修改區域：骰子外觀 --- */
         .dice {
-            width: 100px;
-            height: 100px;
-            border-radius: 16px;
+            width: 100px; /* 骰子寬度 */
+            height: 100px; /* 骰子高度 */
+            border-radius: 16px; /* 骰子圓角 */
             background-color: #fff;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 3rem;
+            font-size: 3rem; /* 骰子文字大小 */
             font-weight: bold;
             color: #1f2937;
         }
+        /* --- 🎨 可修改區域結束 --- */
         .history-item {
             font-size: 2rem;
             padding: 0.5rem 1rem;
@@ -93,15 +95,16 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <script>
-        // ===== 步驟三：貼上您的 Firebase 設定 =====
-        // !!! 非常重要：請將下面的 firebaseConfig 物件換成您自己在步驟一複製的金鑰 !!!
+        // ===== Firebase 設定 (已修正) =====
         const firebaseConfig = {
           apiKey: "AIzaSyCS-PnLcCou_7-PHWu0i-iQLuZz5dh-Rps",
-  authDomain: "fraction-bingo-game.firebaseapp.com",
-  projectId: "fraction-bingo-game",
-  storageBucket: "fraction-bingo-game.firebasestorage.app",
-  messagingSenderId: "542920141931",
-  appId: "1:542920141931:web:999d100aafa817a6ff152e"
+          authDomain: "fraction-bingo-game.firebaseapp.com",
+          projectId: "fraction-bingo-game",
+          // --- ✨ 已為您加入正確的 databaseURL ---
+          databaseURL: "https://fraction-bingo-game-default-rtdb.asia-southeast1.firebasedatabase.app",
+          storageBucket: "fraction-bingo-game.firebasestorage.app",
+          messagingSenderId: "542920141931",
+          appId: "1:542920141931:web:999d100aafa817a6ff152e"
         };
         // ==========================================
 
@@ -116,11 +119,11 @@
         const fractionDisplayEl = document.getElementById('fraction-display');
         const visualizationContainerEl = document.getElementById('visualization-container');
         const historyContainerEl = document.getElementById('history-container');
-        const rollSound = document.getElementById('roll-sound'); // 音效元素
+        const rollSound = document.getElementById('roll-sound');
 
         let history = [];
 
-        // --- 以下是原本的繪圖與計算函式，沒有變動 ---
+        // --- 繪圖與計算函式 ---
         function createPieSVG(numerator, denominator) {
             const svgNS = "http://www.w3.org/2000/svg";
             const svg = document.createElementNS(svgNS, "svg");
@@ -157,13 +160,12 @@
             return container;
         }
         
-        // --- 修改：擲骰子函式 ---
+        // --- 擲骰子函式 ---
         function rollDice() {
             rollButton.disabled = true;
             dice1El.classList.add('rolling');
             dice2El.classList.add('rolling');
             
-            // 播放音效
             rollSound.currentTime = 0;
             rollSound.play();
 
@@ -184,7 +186,7 @@
             }, 100);
         }
 
-        // --- 修改：處理結果函式 ---
+        // --- 處理結果函式 ---
         function processResult(num1, num2) {
             let numerator, denominator;
             if (num1 === num2) {
@@ -195,15 +197,12 @@
                 denominator = Math.max(num1, num2);
             }
             
-            // ===== 新增：將結果寫入 Firebase =====
-            // 我們在 'game/fraction' 這個路徑下儲存分數
-            // 加入一個 timestamp 是為了確保每次寫入都會觸發學生端的更新
+            // 將結果寫入 Firebase
             database.ref('game/fraction').set({
                 num: numerator,
                 den: denominator,
                 timestamp: Date.now() 
             });
-            // ======================================
 
             // 更新主分數顯示
             if (numerator === denominator) {

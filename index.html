@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分數賓果 - 老師端</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            touch-action: manipulation; /* Disable double-tap zoom on mobile */
+        }
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 0.5em;
+        }
+        .fraction > span {
+            display: block;
+            padding: 0 0.3em;
+        }
+        .fraction > span.denominator {
+            border-top: 2px solid currentColor;
+        }
+        .dice {
+            width: 100px;
+            height: 100px;
+            border-radius: 16px;
+            background-color: #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3rem;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        .history-item {
+            font-size: 2rem;
+            padding: 0.5rem 1rem;
+            background-color: #f3f4f6;
+            border-radius: 8px;
+        }
+        /* 動畫效果 */
+        @keyframes roll {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(15deg) scale(1.05); }
+            50% { transform: rotate(-15deg) scale(1.05); }
+            75% { transform: rotate(5deg) scale(1.02); }
+            100% { transform: rotate(0deg) scale(1); }
+        }
+        .rolling {
+            animation: roll 0.2s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-600 mb-4">分數賓果 - 老師端</h1>
+            <button id="roll-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform active:scale-95 shadow-md">
+                🎲 擲骰子
+            </button>
+        </div>
+
+        <div class="flex flex-col items-center justify-center space-y-4 mb-8">
+            <div class="flex items-center space-x-4">
+                <div id="dice1" class="dice">?</div>
+                <div id="dice2" class="dice">?</div>
+            </div>
+            <div id="fraction-display" class="text-7xl md:text-9xl font-bold text-gray-700 h-32 md:h-40 flex items-center"></div>
+        </div>
+
+        <div id="visualization-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 min-h-[200px] border-t pt-6">
+            <div class="col-span-full flex items-center justify-center text-gray-400">
+                <p>💡 擲出骰子後，這裡會顯示等值分數的圖形提示</p>
+            </div>
+        </div>
+
+        <div class="mt-8 border-t pt-6">
+            <h2 class="text-2xl font-bold text-center mb-4">📜 歷史紀錄</h2>
+            <div id="history-container" class="flex flex-wrap justify-center gap-4 p-4 bg-gray-50 rounded-lg min-h-[80px]">
+                <p class="text-gray-400">目前沒有紀錄</p>
+            </div>
+        </div>
+    </div>
+
+    <audio id="roll-sound" src="https://taira-komori.net/sound_os2/daily01/rolling_pencil.mp3" preload="auto"></audio>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+    <script>
+        // ===== 步驟三：貼上您的 Firebase 設定 =====
+        // !!! 非常重要：請將下面的 firebaseConfig 物件換成您自己在步驟一複製的金鑰 !!!
+        const firebaseConfig = {
+          apiKey: "AIzaSyCS-PnLcCou_7-PHWu0i-iQLuZz5dh-Rps",
+  authDomain: "fraction-bingo-game.firebaseapp.com",
+  projectId: "fraction-bingo-game",
+  storageBucket: "fraction-bingo-game.firebasestorage.app",
+  messagingSenderId: "542920141931",
+  appId: "1:542920141931:web:999d100aafa817a6ff152e"
+        };
+        // ==========================================
+
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // 取得 HTML 元素
+        const rollButton = document.getElementById('roll-button');
+        const dice1El = document.getElementById('dice1');
+        const dice2El = document.getElementById('dice2');
+        const fractionDisplayEl = document.getElementById('fraction-display');
+        const visualizationContainerEl = document.getElementById('visualization-container');
+        const historyContainerEl = document.getElementById('history-container');
+        const rollSound = document.getElementById('roll-sound'); // 音效元素
+
+        let history = [];
+
+        // --- 以下是原本的繪圖與計算函式，沒有變動 ---
+        function createPieSVG(numerator, denominator) {
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            const size = 180;
+            const center = size / 2;
+            const radius = size / 2 - 10;
+            svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+            svg.setAttribute("width", "100%");
+            svg.setAttribute("height", "100%");
+            const angleStep = 360 / denominator;
+            let currentAngle = -90;
+            for (let i = 0; i < denominator; i++) {
+                const startX = center + radius * Math.cos(currentAngle * Math.PI / 180);
+                const startY = center + radius * Math.sin(currentAngle * Math.PI / 180);
+                currentAngle += angleStep;
+                const endX = center + radius * Math.cos(currentAngle * Math.PI / 180);
+                const endY = center + radius * Math.sin(currentAngle * Math.PI / 180);
+                const largeArcFlag = angleStep > 180 ? 1 : 0;
+                const pathData = `M ${center},${center} L ${startX},${startY} A ${radius},${radius} 0 ${largeArcFlag} 1 ${endX},${endY} Z`;
+                const path = document.createElementNS(svgNS, "path");
+                path.setAttribute("d", pathData);
+                path.setAttribute("stroke", "#4b5563");
+                path.setAttribute("stroke-width", "1.5");
+                path.setAttribute("fill", i < numerator ? "#3b82f6" : "#e5e7eb");
+                svg.appendChild(path);
+            }
+            const container = document.createElement('div');
+            container.className = 'flex flex-col items-center';
+            container.appendChild(svg);
+            const label = document.createElement('div');
+            label.className = 'text-2xl font-bold mt-1';
+            label.innerHTML = `<div class="fraction"><span>${numerator}</span><span class="denominator">${denominator}</span></div>`;
+            container.appendChild(label);
+            return container;
+        }
+        
+        // --- 修改：擲骰子函式 ---
+        function rollDice() {
+            rollButton.disabled = true;
+            dice1El.classList.add('rolling');
+            dice2El.classList.add('rolling');
+            
+            // 播放音效
+            rollSound.currentTime = 0;
+            rollSound.play();
+
+            let rollCount = 0;
+            const interval = setInterval(() => {
+                dice1El.textContent = Math.ceil(Math.random() * 10);
+                dice2El.textContent = Math.ceil(Math.random() * 10);
+                rollCount++;
+                if (rollCount > 10) {
+                    clearInterval(interval);
+                    dice1El.classList.remove('rolling');
+                    dice2El.classList.remove('rolling');
+                    const num1 = parseInt(dice1El.textContent);
+                    const num2 = parseInt(dice2El.textContent);
+                    processResult(num1, num2);
+                    rollButton.disabled = false;
+                }
+            }, 100);
+        }
+
+        // --- 修改：處理結果函式 ---
+        function processResult(num1, num2) {
+            let numerator, denominator;
+            if (num1 === num2) {
+                numerator = 1;
+                denominator = 1;
+            } else {
+                numerator = Math.min(num1, num2);
+                denominator = Math.max(num1, num2);
+            }
+            
+            // ===== 新增：將結果寫入 Firebase =====
+            // 我們在 'game/fraction' 這個路徑下儲存分數
+            // 加入一個 timestamp 是為了確保每次寫入都會觸發學生端的更新
+            database.ref('game/fraction').set({
+                num: numerator,
+                den: denominator,
+                timestamp: Date.now() 
+            });
+            // ======================================
+
+            // 更新主分數顯示
+            if (numerator === denominator) {
+                fractionDisplayEl.innerHTML = `<span class="text-blue-600">1 (任意)</span>`;
+            } else {
+                fractionDisplayEl.innerHTML = `<div class="fraction"><span>${numerator}</span><span class="denominator">${denominator}</span></div>`;
+            }
+            updateHistory(numerator, denominator);
+            updateVisualizations(numerator, denominator);
+        }
+
+        function updateHistory(num, den) {
+            if (history.length === 0) {
+                historyContainerEl.innerHTML = '';
+            }
+             const fractionHTML = `<div class="fraction history-item"><span>${num}</span><span class="denominator">${den}</span></div>`;
+            history.push({num, den});
+            historyContainerEl.insertAdjacentHTML('beforeend', fractionHTML);
+        }
+
+        function gcd(a, b) {
+            return b === 0 ? a : gcd(b, a % b);
+        }
+        
+        function updateVisualizations(num, den) {
+            visualizationContainerEl.innerHTML = '';
+            if (num === den) {
+                 visualizationContainerEl.innerHTML = `<div class="col-span-full text-center text-2xl font-bold text-green-600 p-8">🎉 擲到 1！學生可以任選一格填塗！</div>`;
+                 return;
+            }
+            const simpleNum = num / gcd(num, den);
+            const simpleDen = den / gcd(num, den);
+            visualizationContainerEl.appendChild(createPieSVG(num, den));
+            const denominatorsToCheck = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+            for (const d of denominatorsToCheck) {
+                if (d === den) continue;
+                if ((simpleNum * d) % simpleDen === 0) {
+                    const n = (simpleNum * d) / simpleDen;
+                    if (n > 0 && n <= d) {
+                       visualizationContainerEl.appendChild(createPieSVG(n, d));
+                    }
+                }
+            }
+        }
+
+        rollButton.addEventListener('click', rollDice);
+    </script>
+</body>
+</html>

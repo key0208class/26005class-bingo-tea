@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>分數賓果 - 老師端</title>
+    <title>分數賓果 v5.0.0 - 老師端</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         body {
             font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            touch-action: manipulation; /* Disable double-tap zoom on mobile */
+            touch-action: manipulation;
         }
         .fraction {
             display: inline-flex;
@@ -25,15 +26,15 @@
         }
         /* --- 🎨 可修改區域：骰子外觀 --- */
         .dice {
-            width: 100px; /* 骰子寬度 */
-            height: 100px; /* 骰子高度 */
-            border-radius: 16px; /* 骰子圓角 */
+            width: 100px;
+            height: 100px;
+            border-radius: 16px;
             background-color: #fff;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 3rem; /* 骰子文字大小 */
+            font-size: 3rem;
             font-weight: bold;
             color: #1f2937;
         }
@@ -44,7 +45,6 @@
             background-color: #f3f4f6;
             border-radius: 8px;
         }
-        /* 動畫效果 */
         @keyframes roll {
             0% { transform: rotate(0deg) scale(1); }
             25% { transform: rotate(15deg) scale(1.05); }
@@ -55,79 +55,131 @@
         .rolling {
             animation: roll 0.2s linear infinite;
         }
+        /* v5.0.0: 慶祝彈出視窗樣式 */
+        #celebration-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            align-items: center;
+            justify-content: center;
+        }
+        #celebration-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 24px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            transform: scale(0.5);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        #celebration-modal.visible #celebration-content {
+            transform: scale(1);
+            opacity: 1;
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+<body class="bg-gray-100 text-gray-800">
 
-    <div id="room-entry-container" class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-lg p-8 text-center">
-        <h1 class="text-3xl font-bold text-blue-600 mb-6">分數賓果 - 教室設定</h1>
-        <p class="text-gray-600 mb-4">請為您的教室命名，例如「502」或「週三數學班」。</p>
-        <input type="text" id="room-id-input" placeholder="請輸入教室代碼" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
-        <button id="enter-room-btn" class="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform active:scale-95 shadow-md">
-            ✅ 建立/進入教室
-        </button>
-    </div>
-    <div id="main-game-content" class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-8" style="display: none;">
-        <div class="text-center mb-6">
-            <h1 class="text-3xl md:text-4xl font-bold text-blue-600 mb-2">分數賓果 - 老師端</h1>
-            <h2 id="classroom-display" class="text-xl font-semibold text-gray-500"></h2>
-            <button id="roll-button" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform active:scale-95 shadow-md">
-                🎲 擲骰子
+    <div id="room-entry-container" class="flex flex-col items-center justify-center min-h-screen p-4">
+        <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-lg p-8 text-center">
+            <h1 class="text-3xl font-bold text-blue-600 mb-6">分數賓果 - 教室設定</h1>
+            <p class="text-gray-600 mb-4">請為您的教室命名，例如「502」或「週三數學班」。</p>
+            <input type="text" id="room-id-input" placeholder="請輸入教室代碼" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+            <button id="enter-room-btn" class="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform active:scale-95 shadow-md">
+                ✅ 建立/進入教室
             </button>
         </div>
+    </div>
 
-        <div class="flex flex-col items-center justify-center space-y-4 mb-8">
-            <div class="flex items-center space-x-4">
-                <div id="dice1" class="dice">?</div>
-                <div id="dice2" class="dice">?</div>
+    <div id="main-game-content" class="min-h-screen" style="display: none;">
+        <div class="flex flex-col md:flex-row h-screen">
+            
+            <div id="bingo-winners-area" class="w-full md:w-1/4 bg-green-50 p-6 border-r border-gray-200 flex flex-col">
+                <h2 class="text-2xl font-bold text-green-700 text-center mb-4">🏆 完成賓果 🏆</h2>
+                <div id="winners-list" class="flex-grow bg-white rounded-lg p-4 shadow-inner overflow-y-auto">
+                    <p class="text-gray-400 text-center">目前沒有人賓果...</p>
+                </div>
             </div>
-            <div id="fraction-display" class="text-7xl md:text-9xl font-bold text-gray-700 h-32 md:h-40 flex items-center"></div>
-        </div>
 
-        <div id="visualization-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 min-h-[200px] border-t pt-6">
-            <div class="col-span-full flex items-center justify-center text-gray-400">
-                <p>💡 擲出骰子後，這裡會顯示等值分數的圖形提示</p>
+            <div id="teacher-controls-area" class="w-full md:w-1/2 p-6 md:p-8 flex flex-col items-center justify-center">
+                <div class="w-full max-w-lg text-center">
+                    <h1 class="text-3xl md:text-4xl font-bold text-blue-600 mb-2">分數賓果 - 老師端</h1>
+                    <h2 id="classroom-display" class="text-xl font-semibold text-gray-500 mb-4"></h2>
+                    <button id="roll-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform active:scale-95 shadow-md">
+                        🎲 擲骰子
+                    </button>
+
+                    <div class="flex flex-col items-center justify-center space-y-4 my-8">
+                        <div class="flex items-center space-x-4">
+                            <div id="dice1" class="dice">?</div>
+                            <div id="dice2" class="dice">?</div>
+                        </div>
+                        <div id="fraction-display" class="text-7xl md:text-9xl font-bold text-gray-700 h-32 md:h-40 flex items-center"></div>
+                    </div>
+
+                    <div id="visualization-container" class="grid grid-cols-2 md:grid-cols-3 gap-4 min-h-[150px] border-t pt-6">
+                        <div class="col-span-full flex items-center justify-center text-gray-400">
+                            <p>💡 擲出骰子後，這裡會顯示等值分數的圖形提示</p>
+                        </div>
+                    </div>
+                     <div class="mt-8 border-t pt-6">
+                        <h2 class="text-2xl font-bold text-center mb-4">📜 歷史紀錄</h2>
+                        <div id="history-container" class="flex flex-wrap justify-center gap-4 p-4 bg-gray-50 rounded-lg min-h-[80px]">
+                            <p class="text-gray-400">目前沒有紀錄</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <div class="mt-8 border-t pt-6">
-            <h2 class="text-2xl font-bold text-center mb-4">📜 歷史紀錄</h2>
-            <div id="history-container" class="flex flex-wrap justify-center gap-4 p-4 bg-gray-50 rounded-lg min-h-[80px]">
-                <p class="text-gray-400">目前沒有紀錄</p>
+            <div id="student-status-area" class="w-full md:w-1/4 bg-blue-50 p-6 border-l border-gray-200 flex flex-col">
+                <h2 class="text-2xl font-bold text-blue-700 text-center mb-4">👨‍🎓 教室學生 👩‍🎓</h2>
+                <div id="student-list" class="flex-grow bg-white rounded-lg p-4 shadow-inner overflow-y-auto">
+                    <p class="text-gray-400 text-center">正在等待學生加入...</p>
+                </div>
             </div>
         </div>
     </div>
 
+    <div id="celebration-modal">
+        <div id="celebration-content">
+            <img id="celebration-image" src="https://class.kh.edu.tw/sites/26005/upload_file/6/21.png" alt="Bingo!" class="w-64 h-64 mx-auto mb-4">
+            <h2 id="celebration-text" class="text-3xl font-bold text-yellow-500"></h2>
+            <button id="close-celebration-btn" class="mt-6 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg">關閉</button>
+        </div>
+    </div>
+
+
     <audio id="roll-sound" src="https://taira-komori.net/sound_os2/daily01/rolling_pencil.mp3" preload="auto"></audio>
+    <audio id="bingo-sound" src="https://taira-komori.net/sound_os/pre/trumpet1.mp3" preload="auto"></audio>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
     <script>
-       // ===== Firebase 設定 (已修正) =====
+        // ===== Firebase 設定 =====
         const firebaseConfig = {
           apiKey: "AIzaSyCS-PnLcCou_7-PHWu0i-iQLuZz5dh-Rps",
           authDomain: "fraction-bingo-game.firebaseapp.com",
           projectId: "fraction-bingo-game",
-          // --- ✨ 已為您加入正確的 databaseURL ---
           databaseURL: "https://fraction-bingo-game-default-rtdb.asia-southeast1.firebasedatabase.app",
           storageBucket: "fraction-bingo-game.firebasestorage.app",
           messagingSenderId: "542920141931",
           appId: "1:542920141931:web:999d100aafa817a6ff152e"
         };
-        // ==========================================
+        // ========================
 
-        // 初始化 Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // v4.0.0: 取得所有 HTML 元素
+        // --- DOM 元素 ---
         const roomEntryContainer = document.getElementById('room-entry-container');
         const mainGameContent = document.getElementById('main-game-content');
         const roomIdInput = document.getElementById('room-id-input');
         const enterRoomBtn = document.getElementById('enter-room-btn');
         const classroomDisplay = document.getElementById('classroom-display');
-        
         const rollButton = document.getElementById('roll-button');
         const dice1El = document.getElementById('dice1');
         const dice2El = document.getElementById('dice2');
@@ -135,13 +187,31 @@
         const visualizationContainerEl = document.getElementById('visualization-container');
         const historyContainerEl = document.getElementById('history-container');
         const rollSound = document.getElementById('roll-sound');
+        // v5.0.0: 新增 DOM 元素
+        const studentListEl = document.getElementById('student-list');
+        const winnersListEl = document.getElementById('winners-list');
+        const celebrationModal = document.getElementById('celebration-modal');
+        const celebrationText = document.getElementById('celebration-text');
+        const closeCelebrationBtn = document.getElementById('close-celebration-btn');
+        const bingoSound = document.getElementById('bingo-sound');
 
-        // v4.0.0: 遊戲狀態
+
+        // --- 遊戲狀態 ---
         let classRoomId = null;
         let history = [];
+        // v5.0.0: 用於追蹤已慶祝過的賓果玩家
+        let celebratedWinners = new Set(); 
 
-        // v4.0.0: 進入教室邏輯
-        enterRoomBtn.addEventListener('click', () => {
+        // --- 事件監聽 ---
+        enterRoomBtn.addEventListener('click', enterRoom);
+        rollButton.addEventListener('click', rollDice);
+        closeCelebrationBtn.addEventListener('click', () => {
+            celebrationModal.classList.remove('visible');
+            setTimeout(() => { celebrationModal.style.display = 'none'; }, 300);
+        });
+        
+        // --- 核心函式 ---
+        function enterRoom() {
             const roomId = roomIdInput.value.trim();
             if (!roomId) {
                 alert('請務必輸入教室代碼！');
@@ -149,14 +219,104 @@
             }
             classRoomId = roomId;
             
+            // v5.0.0: 進入教室時，清空上一次的擲骰紀錄
+            const fractionPath = `classrooms/${classRoomId}/fraction`;
+            database.ref(fractionPath).set(null);
+
             // 更新畫面
             classroomDisplay.textContent = `教室代碼: ${classRoomId}`;
             roomEntryContainer.style.display = 'none';
             mainGameContent.style.display = 'block';
-        });
 
+            // v5.0.0: 啟動學生狀態監聽器
+            listenToStudents();
+        }
 
-        // --- 繪圖與計算函式 ---
+        // v5.0.0: 監聽學生狀態並更新儀表板
+        function listenToStudents() {
+            const studentsPath = `classrooms/${classRoomId}/students`;
+            database.ref(studentsPath).on('value', (snapshot) => {
+                const studentsData = snapshot.val() || {};
+                const studentsArray = Object.values(studentsData);
+                
+                // 依姓名排序
+                studentsArray.sort((a, b) => a.name.localeCompare(b.name));
+
+                updateStudentList(studentsArray);
+                updateWinnersList(studentsArray);
+            });
+        }
+        
+        // v5.0.0: 更新右側學生列表
+        function updateStudentList(students) {
+            if (students.length === 0) {
+                studentListEl.innerHTML = '<p class="text-gray-400 text-center">正在等待學生加入...</p>';
+                return;
+            }
+            studentListEl.innerHTML = '';
+            const statusMap = {
+                '準備完成': { emoji: '✅', color: 'text-green-600' },
+                '輸入中': { emoji: '✍️', color: 'text-yellow-600' },
+                '賓果': { emoji: '🏆', color: 'text-red-500 font-bold' }
+            };
+            students.forEach(student => {
+                const statusInfo = statusMap[student.status] || { emoji: '❓', color: 'text-gray-400' };
+                const studentDiv = document.createElement('div');
+                studentDiv.className = 'flex justify-between items-center p-2 border-b';
+                studentDiv.innerHTML = `
+                    <span class="font-medium">${student.name}</span>
+                    <span class="font-semibold ${statusInfo.color}">${statusInfo.emoji} ${student.status}</span>
+                `;
+                studentListEl.appendChild(studentDiv);
+            });
+        }
+        
+        // v5.0.0: 更新左側賓果列表並觸發慶祝
+        function updateWinnersList(students) {
+            const currentWinners = students.filter(s => s.status === '賓果');
+            if (currentWinners.length === 0) {
+                winnersListEl.innerHTML = '<p class="text-gray-400 text-center">目前沒有人賓果...</p>';
+                return;
+            }
+            winnersListEl.innerHTML = '';
+            currentWinners.forEach(winner => {
+                const winnerDiv = document.createElement('div');
+                winnerDiv.className = 'text-center text-xl font-bold p-3 bg-yellow-100 rounded-lg mb-2 animate-pulse';
+                winnerDiv.textContent = `🎉 ${winner.name} 🎉`;
+                winnersListEl.appendChild(winnerDiv);
+
+                // 檢查是否為新的賓果玩家
+                if (!celebratedWinners.has(winner.name)) {
+                    celebratedWinners.add(winner.name);
+                    triggerCelebration(winner.name);
+                }
+            });
+        }
+
+        // v5.0.0: 觸發賓果慶祝動畫與音效
+        function triggerCelebration(winnerName) {
+            celebrationText.textContent = `恭喜 ${winnerName} 賓果！`;
+            celebrationModal.style.display = 'flex';
+            setTimeout(() => celebrationModal.classList.add('visible'), 50);
+
+            bingoSound.currentTime = 0;
+            bingoSound.play();
+
+            // 彩帶動畫
+            const duration = 5 * 1000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1001 };
+            function randomInRange(min, max) { return Math.random() * (max - min) + min; }
+            const interval = setInterval(function() {
+                const timeLeft = animationEnd - Date.now();
+                if (timeLeft <= 0) return clearInterval(interval);
+                const particleCount = 50 * (timeLeft / duration);
+                confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+                confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+            }, 250);
+        }
+
+        // --- 繪圖與計算函式 (無變動) ---
         function createPieSVG(numerator, denominator) {
             const svgNS = "http://www.w3.org/2000/svg";
             const svg = document.createElementNS(svgNS, "svg");
@@ -193,15 +353,13 @@
             return container;
         }
         
-        // --- 擲骰子函式 ---
+        // --- 擲骰子函式 (無變動) ---
         function rollDice() {
             rollButton.disabled = true;
             dice1El.classList.add('rolling');
             dice2El.classList.add('rolling');
-            
             rollSound.currentTime = 0;
             rollSound.play();
-
             let rollCount = 0;
             const interval = setInterval(() => {
                 dice1El.textContent = Math.ceil(Math.random() * 10);
@@ -219,7 +377,7 @@
             }, 100);
         }
 
-        // --- 處理結果函式 ---
+        // --- 處理結果函式 (無變動) ---
         function processResult(num1, num2) {
             let numerator, denominator;
             if (num1 === num2) {
@@ -229,10 +387,6 @@
                 numerator = Math.min(num1, num2);
                 denominator = Math.max(num1, num2);
             }
-            
-            // v4.0.0: 將結果寫入 Firebase 的特定教室路徑下
-            // 這是本次修改的核心！我們不再寫入固定的 'game/fraction'
-            // 而是寫入 `classrooms/教室代碼/fraction`
             if (!classRoomId) {
                 alert('錯誤：沒有教室代碼，無法發送分數！');
                 return;
@@ -243,8 +397,6 @@
                 den: denominator,
                 timestamp: Date.now() 
             });
-
-            // 更新主分數顯示
             if (numerator === denominator) {
                 fractionDisplayEl.innerHTML = `<span class="text-blue-600">1 (任意)</span>`;
             } else {
@@ -263,9 +415,7 @@
             historyContainerEl.insertAdjacentHTML('beforeend', fractionHTML);
         }
 
-        function gcd(a, b) {
-            return b === 0 ? a : gcd(b, a % b);
-        }
+        function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
         
         function updateVisualizations(num, den) {
             visualizationContainerEl.innerHTML = '';
@@ -287,8 +437,6 @@
                 }
             }
         }
-
-        rollButton.addEventListener('click', rollDice);
     </script>
 </body>
 </html>
